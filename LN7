@@ -1,0 +1,329 @@
+--// LN7 HUB
+--// AIM FOV + ESP PLAYER + DISCORD
+--// LocalScript
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- CONFIG
+local AimEnabled = false
+local ESPEnabled = false
+
+local FOVRadius = 120
+local FOVVisible = true
+local CurrentTarget = nil
+
+-- GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game.CoreGui
+ScreenGui.Name = "LN7_HUB"
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0,220,0,220)
+MainFrame.Position = UDim2.new(0,120,0,180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+MainFrame.BorderSizePixel = 0
+
+local Corner = Instance.new("UICorner", MainFrame)
+
+-- BOTÃO ABRIR/FECHAR
+local OpenClose = Instance.new("ImageButton")
+OpenClose.Parent = ScreenGui
+OpenClose.Size = UDim2.new(0,50,0,50)
+OpenClose.Position = UDim2.new(0.02,0,0.25,0)
+OpenClose.BackgroundColor3 = Color3.fromRGB(40,40,40)
+
+-- IMAGEM
+OpenClose.Image = "rbxassetid://99929483644975"
+
+local OpenCorner = Instance.new("UICorner", OpenClose)
+OpenCorner.CornerRadius = UDim.new(0,8)
+
+-- AIM BUTTON
+local AimButton = Instance.new("TextButton")
+AimButton.Parent = MainFrame
+AimButton.Size = UDim2.new(0,200,0,40)
+AimButton.Position = UDim2.new(0,10,0,10)
+AimButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
+AimButton.TextColor3 = Color3.new(1,1,1)
+AimButton.TextScaled = true
+AimButton.Text = "AIM FOV: OFF"
+
+local AimCorner = Instance.new("UICorner", AimButton)
+
+-- ESP BUTTON
+local ESPButton = Instance.new("TextButton")
+ESPButton.Parent = MainFrame
+ESPButton.Size = UDim2.new(0,200,0,40)
+ESPButton.Position = UDim2.new(0,10,0,60)
+ESPButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
+ESPButton.TextColor3 = Color3.new(1,1,1)
+ESPButton.TextScaled = true
+ESPButton.Text = "ESP PLAYER: OFF"
+
+local EspCorner = Instance.new("UICorner", ESPButton)
+
+-- DISCORD BUTTON
+local DiscordButton = Instance.new("TextButton")
+DiscordButton.Parent = MainFrame
+DiscordButton.Size = UDim2.new(0,200,0,40)
+DiscordButton.Position = UDim2.new(0,10,0,110)
+DiscordButton.BackgroundColor3 = Color3.fromRGB(88,101,242)
+DiscordButton.TextColor3 = Color3.new(1,1,1)
+DiscordButton.TextScaled = true
+DiscordButton.Text = "DISCORD"
+
+local DiscordCorner = Instance.new("UICorner", DiscordButton)
+
+-- ARRASTÁVEL
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+
+	local delta = input.Position - dragStart
+
+	OpenClose.Position = UDim2.new(
+		startPos.X.Scale,
+		startPos.X.Offset + delta.X,
+		startPos.Y.Scale,
+		startPos.Y.Offset + delta.Y
+	)
+
+	MainFrame.Position = UDim2.new(
+		0,
+		OpenClose.Position.X.Offset + 60,
+		0,
+		OpenClose.Position.Y.Offset
+	)
+end
+
+OpenClose.InputBegan:Connect(function(input)
+
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragging = true
+		dragStart = input.Position
+		startPos = OpenClose.Position
+
+		input.Changed:Connect(function()
+
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+OpenClose.InputChanged:Connect(function(input)
+
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+	or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+	if input == dragInput and dragging then
+		update(input)
+	end
+end)
+
+-- ABRIR/FECHAR GUI
+local Opened = true
+
+OpenClose.MouseButton1Click:Connect(function()
+
+	Opened = not Opened
+	MainFrame.Visible = Opened
+end)
+
+-- AIM TOGGLE
+AimButton.MouseButton1Click:Connect(function()
+
+	AimEnabled = not AimEnabled
+
+	AimButton.Text = AimEnabled
+		and "AIM FOV: ON"
+		or "AIM FOV: OFF"
+end)
+
+-- ESP TOGGLE
+ESPButton.MouseButton1Click:Connect(function()
+
+	ESPEnabled = not ESPEnabled
+
+	ESPButton.Text = ESPEnabled
+		and "ESP PLAYER: ON"
+		or "ESP PLAYER: OFF"
+end)
+
+-- DISCORD
+DiscordButton.MouseButton1Click:Connect(function()
+
+	setclipboard("https://discord.gg/JRyAbM6Ng3x")
+
+	game.StarterGui:SetCore("SendNotification", {
+		Title = "LN7 HUB",
+		Text = "Link do Discord copiado!",
+		Duration = 5
+	})
+end)
+
+-- FOV
+local Circle = Drawing.new("Circle")
+Circle.Color = Color3.fromRGB(255,255,255)
+Circle.Thickness = 2
+Circle.Filled = false
+Circle.Radius = FOVRadius
+
+-- PEGAR PLAYER MAIS PRÓXIMO
+local function GetClosestPlayer()
+
+	local ClosestPlayer = nil
+	local ClosestDistance = FOVRadius
+
+	local Center = Vector2.new(
+		Camera.ViewportSize.X / 2,
+		Camera.ViewportSize.Y / 2
+	)
+
+	for _, player in pairs(Players:GetPlayers()) do
+
+		if player ~= LocalPlayer and player.Character then
+
+			local Head = player.Character:FindFirstChild("Head")
+			local Humanoid = player.Character:FindFirstChild("Humanoid")
+
+			if Head and Humanoid and Humanoid.Health > 0 then
+
+				local Pos, Visible =
+					Camera:WorldToViewportPoint(Head.Position)
+
+				if Visible then
+
+					local Distance = (
+						Vector2.new(Pos.X, Pos.Y) - Center
+					).Magnitude
+
+					if Distance < ClosestDistance then
+
+						ClosestDistance = Distance
+						ClosestPlayer = player
+					end
+				end
+			end
+		end
+	end
+
+	return ClosestPlayer
+end
+
+-- ESP
+local ESPTable = {}
+
+local function CreateESP(player)
+
+	if ESPTable[player] then
+		return
+	end
+
+	local Text = Drawing.new("Text")
+	Text.Size = 18
+	Text.Center = true
+	Text.Outline = true
+	Text.Color = Color3.fromRGB(255,0,0)
+	Text.Text = player.Name
+
+	ESPTable[player] = Text
+end
+
+for _, player in pairs(Players:GetPlayers()) do
+
+	if player ~= LocalPlayer then
+		CreateESP(player)
+	end
+end
+
+Players.PlayerAdded:Connect(function(player)
+
+	if player ~= LocalPlayer then
+		CreateESP(player)
+	end
+end)
+
+-- LOOP
+RunService.RenderStepped:Connect(function()
+
+	local Center = Vector2.new(
+		Camera.ViewportSize.X / 2,
+		Camera.ViewportSize.Y / 2
+	)
+
+	-- FOV
+	Circle.Position = Center
+	Circle.Visible = AimEnabled and FOVVisible
+
+	-- AIM
+	if AimEnabled then
+
+		local Delta = UserInputService:GetMouseDelta()
+
+		if math.abs(Delta.X) > 0.5
+			or math.abs(Delta.Y) > 0.5 then
+
+			CurrentTarget = GetClosestPlayer()
+		end
+
+		if not CurrentTarget then
+			CurrentTarget = GetClosestPlayer()
+		end
+
+		if CurrentTarget
+			and CurrentTarget.Character
+			and CurrentTarget.Character:FindFirstChild("Head") then
+
+			local Head = CurrentTarget.Character.Head
+
+			Camera.CFrame = CFrame.new(
+				Camera.CFrame.Position,
+				Head.Position
+			)
+		end
+	end
+
+	-- ESP
+	for player, esp in pairs(ESPTable) do
+
+		if ESPEnabled
+			and player.Character
+			and player.Character:FindFirstChild("Head") then
+
+			local Head = player.Character.Head
+
+			local Pos, Visible =
+				Camera:WorldToViewportPoint(Head.Position)
+
+			if Visible then
+
+				esp.Position = Vector2.new(Pos.X, Pos.Y - 20)
+				esp.Visible = true
+
+			else
+				esp.Visible = false
+			end
+		else
+			esp.Visible = false
+		end
+	end
+end)
